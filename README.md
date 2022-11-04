@@ -1,2 +1,2 @@
 # rtaptap
-Typing game written in Rust, greatly inspired by bisqwit WSpeed. 
+Typing game written in Rust, greatly inspired by GuitarHero. 
