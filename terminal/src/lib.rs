@@ -3,12 +3,14 @@
 //! A library for interacting with terminal.
 
 use libc::{winsize, termios, ICANON, TIOCGWINSZ,
-	ECHO, STDOUT_FILENO, TCSANOW};
+	ECHO, STDOUT_FILENO, TCSANOW, F_SETFL, O_NONBLOCK};
+use std::process;
+use ctrlc;
 
 /// Clear the all terminal
 #[inline]
 pub fn clear_screen() {
-	print!("\x1b[2J");
+	println!("\x1b[2J");
 }
 
 /// Reset styles and colors
@@ -31,21 +33,57 @@ pub fn bcolor_rgb(r: u8, g: u8, b: u8) {
 
 /// Move cursor to position (x,y)
 #[inline]
-pub fn cursor_move(x: u64, y: u64) {
+pub fn cursor_move(x: usize, y: usize) {
 	print!("\x1b[{y};{x}H");
 }
 
 /// Make cursor {in}visible
 pub fn cursor_visible(enable: bool) {
 	if enable { 
-		print!("\x1b[?25h");
+		println!("\x1b[?25h");
 	} else {
-		print!("\x1b[?25l");
+		println!("\x1b[?25l");
+	}
+}
+
+/// Restore 
+pub fn catch_ctrlc() -> Result<(),()> {
+	match ctrlc::set_handler(|| {
+		canon_and_echo(true);
+		cursor_visible(true);
+		nonblocking_stdin(false);
+		clear_screen();
+		process::exit(0);
+	}) {
+		Ok(_) => Ok(()),
+		Err(_) => Err(()),
+	}
+}
+
+/// 
+pub fn nonblocking_stdin(enable: bool) -> Result<(),()> {
+	let ret: i32;
+	if enable {
+		ret = unsafe {
+			libc::fcntl(0, F_SETFL, O_NONBLOCK)
+		}
+	} 
+	else {
+		ret = unsafe {
+			libc::fcntl(0, F_SETFL, O_NONBLOCK)
+		}
+	}
+	if ret == -1 {
+
+		Err(())
+	}
+	else {
+		Ok(())
 	}
 }
 
 /// {Dis/En}able canonical and echo
-pub fn canon_and_echo(enable: bool) -> Result<(), ()> {
+pub fn canon_and_echo(enable: bool) -> Result<(),()> {
 
 	let mut config = termios {
 	    c_iflag: 0,
@@ -58,39 +96,39 @@ pub fn canon_and_echo(enable: bool) -> Result<(), ()> {
 	    c_ospeed: 0,
 	};
 
-	unsafe {
-		if libc::tcgetattr(STDOUT_FILENO, &mut config) == -1 {
-			return Err(())
-		}
+	if unsafe {
+		libc::tcgetattr(STDOUT_FILENO, &mut config)
+	} == -1 {
+		return Err(())
 	}
 	if enable {
 		config.c_lflag |= ICANON | ECHO;
 	} else {
 		config.c_lflag &= !(ICANON | ECHO);
 	}
-	unsafe {
-		if libc::tcsetattr(STDOUT_FILENO, TCSANOW, &mut config) == -1 {
-			Err(())
-		} else {
-			Ok(())
-		}
+	if unsafe {
+		libc::tcsetattr(STDOUT_FILENO, TCSANOW, &mut config)
+	} == -1 {
+		Err(())
+	} else {
+		Ok(())
 	}
 }
 
 /// Get width and height of the terminal
-pub fn get_terminal_size() -> Result<(u16, u16), ()> {
+pub fn get_terminal_size() -> Result<(usize, usize), ()> {
 	let mut config = winsize  {
     	ws_row: 0,
     	ws_col: 0,
     	ws_xpixel: 0,
     	ws_ypixel: 0,
 	};
-	unsafe {
-		if libc::ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut config) == -1 {
-			return Err(());
-		}
+	if unsafe {
+		libc::ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut config)
+	} == -1 {
+		return Err(());
 	}
-	Ok((config.ws_row, config.ws_col))
+	Ok((config.ws_col.into(), config.ws_row.into()))
 }
 
 #[cfg(test)]

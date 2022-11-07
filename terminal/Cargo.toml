@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 
 # tcsetattr
+ctrlc = "3.2.3"
 libc = "0.2.2"
