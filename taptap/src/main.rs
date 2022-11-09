@@ -5,7 +5,7 @@ use std::io::Read;
 use std::collections::VecDeque;
 use terminal;
 
-const PARTITION_HEIGHT: usize = 15;
+const PARTITION_HEIGHT: usize = 10;
 const PARTITION_ROW: &str = "||||| |||||";
 const PARTITION_WIDTH: usize = PARTITION_ROW.len();
 
@@ -28,10 +28,10 @@ impl Tap {
 		}
 		else { Err(()) }
 	}
-	pub fn draw(self: &Self, input: u8) {
+	pub fn draw(self: &Self, found: bool) {
 		terminal::cursor_move(self.p.x, self.p.y);
-		if input == self.c as u8 {
-			terminal::bcolor_rgb(255,0,0);
+		if found {
+			terminal::fcolor_rgb(0,255,0);
 			println!("{}", self.c);
 			terminal::reset_mods();
 		}
@@ -102,7 +102,7 @@ fn which_finger(c: char) -> usize {
 
 fn main() {
 	
-	let mut need_pop_back = false;
+	let mut need_pop_front = false;
 	let mut script: VecDeque<Tap> = VecDeque::with_capacity(10);
 	let (top_left_x, top_left_y) = top_left_partition();
 	let partition = build_partition(top_left_x, top_left_y);
@@ -113,18 +113,28 @@ fn main() {
 	terminal::cursor_visible(false);
 	loop {
 		terminal::clear_screen();
-		let mut input: [u8; 1] = [0];
-		io::stdin().read(&mut input);
 		println!("{}", partition);	
-		for tap in &mut script {
-			tap.draw(input[0]);
-			match tap.update(top_left_y) {
+		let mut input: [u8; 1] = [0];
+		if let Ok(_) = io::stdin().read(&mut input) {
+			if script.len() > 0 && 
+				input[0] as char == script[0].c {
+				need_pop_front = true
+			}
+		}
+		for i in 0..script.len() {
+			if i == 0 && need_pop_front {
+				script[0].draw(true);
+			} else {
+				script[i].draw(false);
+			}
+			match script[i].update(top_left_y) {
 				Ok(_) => continue,
-				Err(_) => need_pop_back = true,
+				Err(_) => need_pop_front = true,
 			};
 		}
-		if need_pop_back {
+		if need_pop_front {
 			script.pop_front();
+			need_pop_front = false;
 		}
 		let new_c = rand::thread_rng().gen_range('a'..='z');
 		script.push_back( Tap {
